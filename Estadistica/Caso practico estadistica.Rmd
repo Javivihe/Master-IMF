@@ -1,0 +1,509 @@
+---
+title: "Caso Practico Final Evaluable"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+Tomaremos el dataset Salaries.csv
+
+El conjunto de datos consiste en los salarios de nueve meses recogidos de 397 profesores universitarios en los EE.UU. durante 2008 y 2009. Además de los salarios, también se recogió el rango del profesor, el sexo, la disciplina, los años desde el doctorado y los años de servicio. Así, hay un total de 6 variables, que se describen a continuación.
+
+      1. rank: Categórica - de profesor asistente, profesor asociado o catedrático
+      2. discipline: Categórica - Tipo de departamento en el que trabaja el profesor, ya sea aplicado (B) o teórico (A)
+      3. yrs.since.phd: Continuo - Número de años desde que el profesor obtuvo su doctorado
+      4. yrs.service: Continuo - Número de años que el profesor ha prestado servicio al departamento y/o a la universidad
+      5. sex: Categórico - Sexo del profesor, hombre o mujer
+      6. salary: Continuo - Sueldo de nueve meses del profesor (USD)
+
+El objetivo de esta práctica consiste en realizar un estudio íntegro del dataset para terminar implementando un modelo lineal regularizado que realice predicciones sobre el salario a percibir de un profesor. Asimismo, se pedirá aprovechar la explicabilidad de estos modelos y los estudios estadísticos realizados para arrojar intuiciones y dependencias en los datos.
+
+Para ello, se pide al estudiante que realice los siguientes pasos:
+
+1. Carga los datos. Realiza una inspección por variables de la distribución de salarios en función de cada atributo visualmente. Realiza las observaciones pertinentes. ¿Qué variables son mejores para separar los datos?
+2. ¿Podemos emplear un test paramétrico para determinar si las medias de salarios entre hombres y mujeres son las mismas o difieren? Ten en cuenta que, en tanto que se pide usar un test paramétrico, se deberá determinar si las muestras cumplen con las hipótesis necesarias.
+3. Divide el dataset tomando las primeras 317 instancias como train y las últimas 80 como test. Entrena un modelo de regresión lineal con regularización Ridge y Lasso en train seleccionando el que mejor **MSE** tenga. Da las métricas en test. Valora el uso del One Hot Encoder, en caso de emplearlo arguméntalo.
+4. Estudia la normalidad de los residuos del modelo resultante, ¿detectas algún sesgo?
+5. ¿Qué conclusiones extraes de este estudio y del modelo implementado? ¿Consideras correcto el rendimiento del mismo?
+
+¡Mucho ánimo y espero que disfrutéis de esta última práctica!
+
+
+Primero leo los datos y ejecuto las librerías correspondientes.
+
+```{r}
+# Leo el conjunto de datos
+
+salaries = read.csv('Salaries.csv')
+salaries <- subset(salaries, select = - X)
+# Ejecuto la libreria ggplot2 para visualizaciones
+
+# install.packages("ggplot2")
+library(ggplot2)
+
+# Ejecuto la libreria dplyr para realizar modificaciones al Dataframe
+
+# install.packages("dplyr")
+library(dplyr) 
+
+# Ejecuto la libreria glmnet para la regularización.
+
+# install.packages('glmnet')
+library(glmnet)
+
+# Ejecuto la librería MLmetrics para calcular el MSE
+
+# install.packages('MLmetrics')
+library(MLmetrics)
+
+
+```
+Primero observo la posible existencia de nulos o incoherencias en el Dataset
+
+```{r}
+summary(salaries)
+```
+Parece que no hay ningún valor extraño. Voy a cambiar el tipo de dato de algunos
+atributos a factor.
+
+```{r}
+salaries$rank <- factor(salaries$rank)
+salaries$discipline <- factor(salaries$discipline)
+salaries$sex <- factor(salaries$sex)
+
+summary(salaries)
+
+```
+
+
+1. Carga los datos. Realiza una inspección por variables de la distribución de salarios en función de cada atributo visualmente. Realiza las observaciones pertinentes. ¿Qué variables son mejores para separar los datos?
+
+Analizo la distribución de salarios en función de cada atributo.
+
+Empezamos usando las distintas variables categóricas. Compararemos en grupos de 
+3, haciendo uso de fill.
+
+Estudiamos las diferencias entre salario entre distintos rangos.
+
+Observamos una gran diferencia entre cada rango. Dentro de cada uno de ellos
+se observa que los hombres cobran un poco más que las mujeres.
+
+```{r}
+
+# Salario vs rank (teniendo en cuenta el sexo)
+
+ggplot(salaries, aes(x=rank, y=salary, fill=sex)) +
+  geom_bar(stat='summary', fun = "mean") +
+  labs(title = 'Salario vs rank (teniendo en cuenta el sexo)')
+
+
+
+```
+
+Se repite el gráfico pero esta vez pintando por disciplina.
+En cada rango los aplicados cobran un poco más que los teóricos.
+
+
+```{r}
+# Salario vs rank (teniendo en cuenta la disciplina)
+
+ggplot(salaries, aes(x=rank, y=salary, fill=discipline)) +
+  geom_bar(stat='summary', fun = "mean") +
+  labs(title = 'Salario vs rank (teniendo en cuenta la disciplina)')
+```
+
+Comparamos ahora directamente la disciplina con el salario diferenciando por 
+sexos.
+Como era de esperar, los aplicados de media cobran más que los teóricos, y en
+cada grupo los hombres más que las mujeres. Esta ultima diferencia es más 
+notable en el grupo teórico.
+
+```{r}
+# Salario vs disciplina (teniendo en cuenta el sexo)
+
+ggplot(salaries, aes(x=discipline, y=salary, fill=sex)) +
+  geom_bar(stat='summary', fun = "mean") +
+  labs(title = 'Salario vs disciplina (teniendo en cuenta el sexo)')
+```
+
+Por último observamos que de media los hombres cobran más que las mujeres.
+
+```{r}
+# Salario vs sexo
+
+ggplot(salaries, aes(x=sex, y=salary)) +
+  geom_bar(stat='summary', fun = "mean") +
+  labs(title = 'Salario vs sexo')
+```
+
+La mejor variable categórica para comparar salarios parece ser el rango.
+
+Se presentan diferencias más sutiles comparando especialidades y el sexo de cada
+profesor/a.
+
+
+
+Se comparará el salario ahora contra las variables contínuas.
+Se hará uso además del faceting para observar cómo influyen las distintas 
+categorías en cada una de estas variables.
+
+Primero observamos que pasa entre el salario y los años tras el doctorado
+
+
+```{r}
+# Salario vs años tras phd (teniendo en cuenta sexo)
+
+ggplot(salaries, aes(x=yrs.since.phd, y=salary)) +
+  geom_point(aes(color = sex)) + stat_smooth(method = lm, se = FALSE) +
+  labs(title = 'Salario vs años tras phd (teniendo en cuenta sexo)')
+```
+
+Parece que cuanto más tiempo pase tras el doctorado más se cobra, además el sexo
+no parece ser muy determinante en estos casos. Usemos el rango a ver si sacamos
+más conclusiones.
+
+```{r}
+# Salario vs años tras phd (teniendo en cuenta sexo y rango)
+
+ggplot(salaries, aes(x=yrs.since.phd, y=salary)) +
+  geom_point(aes(color = sex)) + stat_smooth(method = lm, se = FALSE) + 
+    facet_grid(rank ~ .) +
+  labs(title = 'Salario vs años tras phd (teniendo en cuenta sexo y rango)')
+```
+
+Resulta que la tendencia ascendente entre los años tras el doctorado y el 
+salario era producto más bien de que los profesores cobran más que los asociados
+y estos más aún que los asistentes. 
+
+Queda claro entonces que importa mucho más el rango que los años tras el 
+doctorado.
+
+Repitamos este gráfico pero pintando ahora la disciplina
+
+```{r}
+# Salario vs años tras phd (teniendo en cuenta disciplina y rango)
+
+ggplot(salaries, aes(x=yrs.since.phd, y=salary)) +
+  geom_point(aes(color = discipline)) + stat_smooth(method = lm, se = FALSE) + 
+    facet_grid(rank ~ .) +
+  labs(title = 'Salario vs años tras phd (teniendo en cuenta disciplina y rango)')
+```
+
+Como bien vimos antes, los hombres y los prácticos (grupo B) cobran más de media.
+
+No obstante, esta superioridad se mantiene a lo largo del tiempo dentro de cada
+rango de profesor.
+
+Usemos ahora la otra variable contínua, los años en servicio.
+
+```{r}
+# Salario vs años en servicio (teniendo en cuenta sexo)
+
+ggplot(salaries, aes(x=yrs.service, y=salary)) +
+  geom_point(aes(color = sex)) + stat_smooth(method = lm, se = FALSE) +
+  labs(title = 'Salario vs años en servicio (teniendo en cuenta sexo)')
+```
+
+Volvemos a encontrarnos con esta tendencia ascendente. Probemos a usar el 
+faceting
+
+```{r}
+# Salario vs años en servicio (teniendo en cuenta sexo y rango)
+
+ggplot(salaries, aes(x=yrs.service, y=salary)) +
+  geom_point(aes(color = sex)) + stat_smooth(method = lm, se = FALSE) + 
+    facet_grid(rank ~ .) +
+  labs(title = 'Salario vs años en servicio (teniendo en cuenta sexo y rango)')
+```
+
+```{r}
+# Salario vs años en servicio (teniendo en cuenta disciplina y rango)
+
+ggplot(salaries, aes(x=yrs.service, y=salary)) +
+  geom_point(aes(color = discipline)) + stat_smooth(method = lm, se = FALSE) + 
+    facet_grid(rank ~ .) +
+  labs(title = 'Salario vs años en servicio (teniendo en cuenta disciplina y rango)')
+```
+
+
+Sacamos las mismas conclusiones que con los años tras el doctorado.
+
+Ambas variables contínuas NO son de mucha utilidad a la hora de medir el salario.
+
+Claramente las variables categóricas aportan más información, en particular la
+del rango.
+
+
+Como particularidad, las conclusiones de las dos variables continuas han sido
+parecidas, por lo que era de esperar que estas dos variables tuvieran cierta
+correlación.
+
+```{r}
+# Años tras phd vs años en servicio
+
+ggplot(salaries, aes(x=yrs.service, y=yrs.since.phd)) +
+  geom_point() + stat_smooth(method = lm, se = FALSE) +
+  labs(title = 'Años tras phd vs años en servicio')
+
+```
+```{r}
+cor(salaries$yrs.since.phd, salaries$yrs.service)
+```
+
+
+
+
+
+
+2. ¿Podemos emplear un test paramétrico para determinar si las medias de salarios entre hombres y mujeres son las mismas o difieren? Ten en cuenta que, en tanto que se pide usar un test paramétrico, se deberá determinar si las muestras cumplen con las hipótesis necesarias.
+
+
+```{r}
+female_salaries = filter(salaries, salaries$sex=='Female')
+male_salaries = filter(salaries, salaries$sex=='Male')
+
+ggplot(female_salaries, aes(x=salary)) + geom_histogram() +
+  labs(title = 'Histograma salario mujeres')
+plot(density(female_salaries$salary))
+```
+
+```{r}
+ggplot(male_salaries, aes(x=salary)) + geom_histogram() +
+  labs(title = 'Histograma salario hombres')
+plot(density(male_salaries$salary))
+
+```
+```{r}
+qqnorm(male_salaries$salary)
+qqline(male_salaries$salary)
+
+shapiro.test(male_salaries$salary)
+```
+```{r}
+qqnorm(female_salaries$salary)
+qqline(female_salaries$salary)
+shapiro.test(female_salaries$salary)
+
+```
+
+El test de Shapiro-Wilk para los salarios de los hombres refleja un p-valor muy
+bajo, rechazando la hipótesis nula de que la distribución subyacente era la normal.
+
+Esto significa que la hipótesis necesaria para realizar un contraste de diferencia
+de medias no se cumple, impidiéndonos el uso de un test parámetrico.
+
+
+
+3. Divide el dataset tomando las primeras 317 instancias como train y las últimas 80 como test. Entrena un modelo de regresión lineal con regularización Ridge y Lasso en train seleccionando el que mejor **MSE** tenga. Da las métricas en test. Valora el uso del One Hot Encoder, en caso de emplearlo arguméntalo.
+
+
+Para el siguiente apartado necesitamos transformar las variables categóricas en 
+numéricas.
+
+Primero crearemos los modelos sin hacer uso del One Hot Enconder
+
+```{r}
+X <- data.matrix(subset(salaries  , select= - c(salary)))
+y <- as.double(as.matrix(salaries$salary))
+head(X)
+head(y)
+```
+Dividimos en train y test data.
+
+```{r}
+X_train <- X[1:317,]
+y_train <- y[1:317]
+X_test <- X[318:397,]
+y_test <- y[318:397]
+```
+
+Empleamos una regresión lineal con regularización Ridge.
+
+
+```{r}
+# Aplicamos Ridge
+cv.ridge <- cv.glmnet(X_train, y_train, family='gaussian', alpha=0, type.measure='mse')
+# Resultados
+plot(cv.ridge)
+```
+
+Vemos los coeficientes.
+
+```{r}
+coef(cv.ridge, s=cv.ridge$lambda.min)
+```
+Y el error cometido
+
+```{r}
+min(cv.ridge$cvm)
+```
+
+Empleamos una regresión lineal con regularización Lasso
+
+
+```{r}
+# Aplicamos Lasso
+cv.lasso <- cv.glmnet(X_train, y_train, family='gaussian', alpha=1, type.measure='mse')
+# Resultados
+plot(cv.lasso)
+```
+
+Vemos los coeficientes.
+
+```{r}
+coef(cv.lasso, s=cv.lasso$lambda.min)
+```
+
+Y el error cometido
+
+```{r}
+min(cv.lasso$cvm)
+```
+
+Observemos ahora el error cometido prediciendo los datos test.
+
+Empezamos con Ridge
+
+```{r}
+MSE(predict(cv.ridge$glmnet.fit, newx=X_test, s=cv.ridge$lambda.min), y_test)
+```
+
+Ahora Lasso
+
+```{r}
+MSE(predict(cv.lasso$glmnet.fit, newx=X_test, s=cv.lasso$lambda.min), y_test)
+```
+
+Se observa que el MSE es realmente alto.
+
+Probaremos haciendo uso del One Hot Encoder.
+
+Esto seguramente sea una buena idea al tener la variable rango 3 categorías distintas. Si bien es verdad que existe cierta jerarquía, es más correcto tratar a cada tipo de profesor como su propia categoría.
+
+
+```{r}
+salariesOHE <- model.matrix(salary~.-1, salaries)
+X <- data.matrix(salariesOHE)
+y <- as.double(as.matrix(salaries$salary))
+X_train_OHE <- X[1:317,]
+y_train_OHE <- y[1:317]
+X_test_OHE <- X[318:397,]
+y_test_OHE <- y[318:397]
+```
+
+
+Empleamos una regresión lineal con regularización Ridge.
+
+
+```{r}
+# Aplicamos Ridge
+cv.ridge_ohe <- cv.glmnet(X_train_OHE, y_train_OHE, family='gaussian', alpha=0, type.measure='mse')
+# Resultados
+plot(cv.ridge_ohe)
+```
+
+Vemos los coeficientes.
+
+```{r}
+coef(cv.ridge_ohe, s=cv.ridge$lambda.min)
+```
+Y el error cometido
+
+```{r}
+min(cv.ridge_ohe$cvm)
+```
+
+Empleamos una regresión lineal con regularización Lasso
+
+
+```{r}
+# Aplicamos Lasso
+cv.lasso_ohe <- cv.glmnet(X_train_OHE, y_train_OHE, family='gaussian', alpha=1, type.measure='mse')
+# Resultados
+plot(cv.lasso_ohe)
+```
+
+Vemos los coeficientes.
+
+```{r}
+coef(cv.lasso_ohe, s=cv.lasso$lambda.min)
+```
+
+Y el error cometido
+
+```{r}
+min(cv.lasso_ohe$cvm)
+```
+
+Observemos ahora el error cometido prediciendo los datos test.
+
+Empezamos con Ridge
+
+```{r}
+MSE(predict(cv.ridge_ohe$glmnet.fit, newx=X_test_OHE, s=cv.ridge$lambda.min), y_test_OHE)
+```
+
+Ahora Lasso
+
+```{r}
+MSE(predict(cv.lasso_ohe$glmnet.fit, newx=X_test_OHE, s=cv.lasso$lambda.min), y_test_OHE)
+```
+
+Observamos que haciendo uso del OHE el error se ha reducido.
+
+
+
+
+
+4. Estudia la normalidad de los residuos del modelo resultante, ¿detectas algún sesgo?
+
+Estudiaremos ahora los residuos de cada uno de los modelos.
+
+```{r}
+residuals_ridge = y_test_OHE - predict(cv.ridge_ohe$glmnet.fit, newx=X_test_OHE, s=cv.ridge_ohe$lambda.min)
+
+hist(residuals_ridge)
+
+qqnorm(residuals_ridge)
+qqline(residuals_ridge)
+```
+
+```{r}
+shapiro.test(residuals_ridge)
+```
+
+
+
+
+```{r}
+residuals_lasso = y_test_OHE - predict(cv.lasso_ohe$glmnet.fit, newx=X_test_OHE, s=cv.lasso_ohe$lambda.min)
+
+hist(residuals_lasso)
+
+qqnorm(residuals_lasso)
+qqline(residuals_lasso)
+```
+
+```{r}
+shapiro.test(residuals_lasso)
+```
+El p-valor es inferior al 5%, por lo que rechazamos la hipótesis nula de que estos residuos provengan de una normal. Se puede ver que la cola derecha de la distribución es más gruesa de la de una normal. Esto significa que la diferencia entre las predicciones y valores reales es alta en un número mayor de casos que el matematicamente esperado. 
+
+En conclusión, podemos afirmar que este modelo tiene un sesgo un tanto elevado a la derecha.
+
+
+
+5. ¿Qué conclusiones extraes de este estudio y del modelo implementado? ¿Consideras correcto el rendimiento del mismo?
+
+
+
+Los resultados que extraigo son que para empezar, las variables más explicativas del salario son el sexo, la disciplina, y el rango. Siendo estas dos últimas las más importantes.
+
+Los años tras el phd y años en servicio son dos variables que están altamente correlacionadas entre sí, por lo que incluso sería conveniente usar solamente una para así reducir dimensionalidad. Además, como vimos en el primer apartado, el salario no dependía mucho de estas variables, se veía más bien altamente influida por el rango. Dentro de cada posible valor, la tendencia se mantenía constante a lo largo de los años tras phd o años en servicio. Seguramente un modelo mejor no tendría que contar con estas variables.
+
+Respecto a los modelos, es conveniente usar un OHE. Mirando sus coeficientes se observa como el ser profesor titular hace que el salario aumente mucho, mientras que otro tipo de rango hace que el salario disminuya. Además, ser del grupo B y hombre son factores que promueven un salario más elevado.
+
+Los resultados con los datos test reflejan un alto MSE, sumado a un sesgo hacia la derecha que hace que los residuos del mismo no presenten normaldiad.Por ello mismo, mi conclusión es que este modelo no tiene un gran rendimiento. 
+
+

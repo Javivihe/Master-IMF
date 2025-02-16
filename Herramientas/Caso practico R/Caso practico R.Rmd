@@ -1,0 +1,170 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+1. Cargar el archivo “Airbnb_Milan.csv” como dataframe
+
+```{r}
+df <- read.csv('Airbnb_Milan.csv', sep = ',')
+
+df
+```
+
+2. Crear un nuevo dataframe que contenga únicamente las columnas que aparecen en el enunciado:
+
+
+```{r}
+df_red <- df[c('host_is_superhost', 'host_identity_verified', 'bathrooms', 'bedrooms', 'daily_price', 'security_deposit', 'minimum_nights', 'number_of_reviews', 'review_scores_rating')]
+df_red
+```
+
+3. Cambiar los factores de la variable “host_is_superhost” de 0, 1 a: “SI” y, “NO”. (investigar la función recode).
+
+```{r}
+# Aquí usé la función mutate con el parámetro recode, no la propia función recode, pero el resultado no debería variar...
+# install.packages("tidyr")
+# install.packages("dplyr")
+
+library(tidyr)
+library(dplyr)
+df_red <- df_red %>% mutate(host_is_superhost=recode(host_is_superhost, '0'='SI', '1'='NO')) # Ojo, no tener instalado libreria Car
+df_red$host_is_superhost <- factor(df_red$host_is_superhost)
+
+df_red
+```
+
+4. Cambiar los factores de la variable “host_identity_verified” de 0, 1 a: “VERIFICA” y “NO VERIFICA”.
+
+```{r}
+df_red <- df_red %>% mutate(host_identity_verified=recode(host_identity_verified, '0'='VERIFICA', '1'='NO VERIFICA'))
+
+df_red$host_identity_verified <- factor(df_red$host_identity_verified)
+df_red
+```
+
+5. Mostrar un resumen estadístico de los datos.
+
+```{r}
+summary(df_red)
+```
+
+6. Filtrar el dataset por apartamentos cuyo mínimo de noches sea igual o menor que siete.
+
+```{r}
+df_red[df_red$minimum_nights<=7,] # No voy a usar más el dataframe filtrado para ejercicios próximos, usaré el sin filtrar
+```
+
+7. ¿Cuál es el precio medio por día de una habitación en función de si el anfitrión tiene verificado o no su perfil?
+
+```{r}
+df_red %>% group_by(host_identity_verified) %>% summarise(mean = mean(daily_price))
+```
+
+Si el anfitrión tiene verificado el perfil es de 103.7127 y si no de 103.7647 
+
+
+8. Quién tiene más número de reseñas, ¿un super host o no super host?
+
+```{r}
+df_red %>% group_by(host_is_superhost) %>% summarise(Media_resenas = mean(number_of_reviews), N_resenas_tot = sum(number_of_reviews))
+```
+
+Tiene más número de reseñas, en media, un no superhost.
+
+9. Sobre la estadística anterior ¿quién tiene la puntuación media más alta?
+
+```{r}
+df_red %>% group_by(host_is_superhost) %>% summarise(N_resenas = mean(review_scores_rating))
+```
+
+Curiosamente tiene más valoración un no superhost, lo cual es curioso...
+
+
+10. Crea un vector categórico llamado “CATEGORÍA”, en función de que, si para la puntuación de las reseñas tiene de 0 a 49, sea “NO ACONSEJABLE”; de 50 a 75 sea “ESTÁNDAR”; y de 76 a 100 sea “TOP”.
+
+```{r}
+df_red[df_red$review_scores_rating<50,'CATEGORÍA'] = 'NO ACONSEJABLE'
+df_red[(49<df_red$review_scores_rating) & (df_red$review_scores_rating<76),'CATEGORÍA'] = 'ESTÁNDAR'
+df_red[(75<df_red$review_scores_rating) & (df_red$review_scores_rating<101),'CATEGORÍA'] = 'TOP'
+df_red
+```
+
+11. Mostrar las frecuencias de la variable CATEGORÍA.
+
+```{r}
+table(df_red['CATEGORÍA'])
+```
+
+12. Obtener el histograma del precio por día.
+
+```{r}
+hist(df_red[,'daily_price'], main = 'Histograma del precio por día', xlab = 'Precio por día')
+```
+
+13. Estudiar la relación entre los dormitorios y baños de forma gráfica.
+
+
+
+```{r}
+# install.packages("ggplot2")
+library(ggplot2)
+```
+
+```{r}
+ggplot(df_red) +
+geom_point(mapping = aes(bathrooms, bedrooms)) +
+geom_smooth(mapping = aes(bathrooms, bedrooms), method = 'lm') +
+ggtitle('Relación dormitorios y baños')
+
+```
+
+
+Se puede observar que son en cierto modo directamente proporcionales. (Quizá hay un modelo que trabaje mejor esta relación).
+
+
+13. Mostrar un histograma del número de reseñas en función de si es un usuario verificado o no.
+
+
+```{r}
+ggplot(df_red, mapping = aes(number_of_reviews)) +
+geom_histogram(aes(fill=host_identity_verified), bins=10)+
+facet_wrap( ~ host_identity_verified)
+```
+
+
+14. Mostrar un histograma por cada valor de “CATEGORÍA” en el que se enseñe la cuantía del depósito de seguridad en función de si el anfitrión es super host o no.
+
+```{r}
+ggplot(df_red, mapping = aes(security_deposit)) +
+geom_histogram(mapping = aes(security_deposit, fill = host_is_superhost), color = "black", position = 'dodge', bins=10)+
+facet_wrap( ~ CATEGORÍA)
+```
+
+
+```{r}
+df_top = df_red[df_red$CATEGORÍA == 'TOP',]
+df_est = df_red[df_red$CATEGORÍA == 'ESTÁNDAR',]
+df_no_ac = df_red[df_red$CATEGORÍA == 'NO ACONSEJABLE',]
+
+```
+
+```{r}
+ggplot(df_top) +
+geom_histogram(mapping = aes(security_deposit, fill = host_is_superhost), color = "red", position = 'dodge' ) +
+ggtitle('Categoría = TOP')
+```
+```{r}
+ggplot(df_est) +
+geom_histogram(mapping = aes(security_deposit, fill = host_is_superhost), color = "red", position = 'dodge' ) +
+ggtitle('Categoría = Estándar')
+```
+
+```{r}
+ggplot(df_no_ac) +
+geom_histogram(mapping = aes(security_deposit, fill = host_is_superhost), color = "red", position = 'dodge' ) +
+ggtitle('Categoría = No aconsejable')
+```
+

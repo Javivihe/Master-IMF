@@ -1,0 +1,17 @@
+Variables;Nivel;Cualitativa / Cuantitativa;Discreta / Continua;Justificación
+Marca;Nominal;Cualitativa;Discreta;Es cualitativa y no existe un orden
+Modelo;Nominal;Cualitativa;Discreta;Es cualitativa y no existe un orden, al menos que yo conozca
+Año;Ordinal;Cualitativa;Discreta;Podría pensarse como intervalo, pero considero que sumar o restar años carece de mucho sentido. Podríamos pensar esta variable casi como cualitativa
+Combustible;Nominal;Cualitativa;Discreta;Es cualitativa y no existe un orden
+CV;Ratio;Cuantitativa;Discreta;Al ser cuantitaiva, 0 tener sentido y no tener números negativos
+Cilindros;Ratio;Cuantitativa;Discreta;Al ser cuantitaiva, 0 tener sentido y no tener números negativos
+Transmisión;Nominal;Cualitativa;Discreta;Es cualitativa y no existe un orden
+Tracción;Nominal;Cualitativa;Discreta;Es cualitativa y no existe un orden
+Puertas;Ordinal;Cualitativa;Discreta;Podría ser ratio, pero considero que tiene más sentido si evitamos realizar aritmética sobre ella
+Mercado;Nominal;Cualitativa;Discreta;Es cualitativa y no existe un orden
+Tamaño;Ordinal;Cualitativa;Discreta;Existe un orden entre los valores pero al ser cualitativa no se puede sumar
+Estilo;Nominal;Cualitativa;Discreta;Es cualitativa y no existe un orden
+Consumo Carretera;Ratio;Cuantitativa;Discreta;Al ser cuantitaiva, 0 tener sentido y no tener números negativos
+Consumo Ciudad;Ratio;Cuantitativa;Discreta;Al ser cuantitaiva, 0 tener sentido y no tener números negativos
+Popularidad;Ratio;Cuantitativa;Discreta;Al ser cuantitaiva, 0 tener sentido y no tener números negativos
+Precio;Ratio;Cuantitativa;Continua;Al ser cuantitaiva, 0 tener sentido y no tener números negativos
